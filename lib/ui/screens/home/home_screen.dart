@@ -129,21 +129,23 @@ double _focusHeadroom(double imageHeight, bool cardExpansion) =>
     ? imageHeight * (MediaCard.focusScale - 1)
     : 0.0;
 
-/// Clips inactive Classic rows where they pass behind the pinned info area.
+/// Clips Classic rows where they pass behind the pinned info area.
 ///
-/// The focused row must remain complete: it is the user's active navigation
-/// target, and clipping its artwork can leave only the card metadata visible.
-/// [isFocused] means the row holds focus. A mouse scroll makes the row nearest
-/// the top the active one without focusing it, so that row still passes
-/// behind the info area like the rest.
+/// A focused row that rests under the info area must remain complete: it is
+/// the user's active navigation target, and clipping its artwork can leave
+/// only the card metadata visible. A focused row that rests below it is still
+/// clipped while it slides there. [isFocused] means the row holds focus. A
+/// mouse scroll makes the row nearest the top the active one without focusing
+/// it, so that row still passes behind the info area like the rest.
 @visibleForTesting
 double classicHomeRowOverlayClipTop({
   required bool isFocused,
   required double rowViewportTop,
+  required double rowRestTop,
   required double rowExtent,
   required double overlayBottom,
 }) {
-  if (isFocused) return 0.0;
+  if (isFocused && rowRestTop < overlayBottom - 1) return 0.0;
   return (overlayBottom - rowViewportTop).clamp(0.0, rowExtent);
 }
 
@@ -4494,6 +4496,13 @@ class _ContentRowsState extends State<_ContentRows>
     return classicRowPadding(prefs);
   }
 
+  /// Where row [rowIndex]'s top settles in the viewport once scrolled to.
+  double _classicRowRestTop(int rowIndex, List<double> rowTopOffsets) {
+    final targets = _rowTargetOffsetsForScroll(fullScreenRows: false);
+    if (rowIndex >= targets.length) return rowTopOffsets[rowIndex];
+    return rowTopOffsets[rowIndex] - targets[rowIndex];
+  }
+
   Widget _buildShiftedRow({
     required Widget child,
     required int rowIndex,
@@ -4530,6 +4539,7 @@ class _ContentRowsState extends State<_ContentRows>
         classicClipTop: classicHomeRowOverlayClipTop(
           isFocused: _rowStateOf(rowIndex)?.hasFocusedItem ?? false,
           rowViewportTop: rowViewportTop,
+          rowRestTop: _classicRowRestTop(rowIndex, rowTopOffsets),
           rowExtent: rowExtent,
           overlayBottom: overlayBottom,
         ),
